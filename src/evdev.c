@@ -1242,7 +1242,6 @@ EvdevAddAbsValuatorClass(DeviceIntPtr device, int want_scroll_axes)
         goto out;
 
 #ifdef MULTITOUCH
-    xf86IDrvMsg(pInfo, X_INFO, "debug: looping over MT axes\n");
     /* Loop over absolute multitouch axes.  Generate fake axes for
        ABS_X etc if kernel doesn't provide.  Adjust the mapping
        between for double-counting between ABS_X and ABS_MT_POSITION_X
@@ -1253,8 +1252,6 @@ EvdevAddAbsValuatorClass(DeviceIntPtr device, int want_scroll_axes)
         {
             int j;
             Bool skip = FALSE;
-
-            xf86IDrvMsg(pInfo, X_INFO, "debug: axis=%d: label=%s\n", axis, abs_labels[axis]);
 
             /* Loop over the MT->legacy axis mapping table:
                1. if find both ABS_X_POSITION_X and ABS_X: setup mapping
@@ -1282,7 +1279,7 @@ EvdevAddAbsValuatorClass(DeviceIntPtr device, int want_scroll_axes)
                             goto out;
                         }
                         xf86IDrvMsg(pInfo, X_WARNING,
-                                    "Faking %s [%d] as a copy of axis %s [%d]\n",
+                                    "Faking '%s' (#%d) as a copy of axis '%s' (#%d)\n",
                                     abs_labels[mt_axis_mappings[j].code],
                                     mt_axis_mappings[j].code,
                                     abs_labels[axis], axis);
@@ -1291,7 +1288,6 @@ EvdevAddAbsValuatorClass(DeviceIntPtr device, int want_scroll_axes)
                     /* (now) have ABS_MT_POSITION_X and ABS_X: setup the mapping */
                     mt_axis_mappings[j].needs_mapping = TRUE;
                     skip = TRUE;
-                    xf86IDrvMsg(pInfo, X_INFO, "debug: axis=%d    j=%d, mapped code, SKIP. \t num_axes=%d, num_mt_axes=%d\n", axis, j, num_axes, num_mt_axes);
                 }
             }
 
@@ -1304,7 +1300,7 @@ EvdevAddAbsValuatorClass(DeviceIntPtr device, int want_scroll_axes)
             num_axes--;
         }
     }
-    xf86IDrvMsg(pInfo, X_INFO, "debug: num_axes=%d, num_mt_axes=%d\n", num_axes, num_mt_axes);
+    xf86IDrvMsg(pInfo, X_INFO, "Have %d multitouch, %d non-multitouch axes\n", num_mt_axes, num_axes);
 
     /* Even after faking ABS_X etc, we still only have mt-axes!
        Shouldn't happen any more even if kernel doesn't give ABS_X.
