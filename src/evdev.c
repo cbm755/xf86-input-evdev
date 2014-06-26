@@ -1218,7 +1218,8 @@ EvdevAddAbsValuatorClass(DeviceIntPtr device, int want_scroll_axes)
 {
     InputInfoPtr pInfo;
     EvdevPtr pEvdev;
-    int num_axes = 0, axis, i = 0;
+    int axis, i = 0;
+    int num_axes = 0; /* number of non-MT axes */
     int num_mt_axes = 0, /* number of MT-only axes */
         num_mt_axes_total = 0; /* total number of MT axes, including
                                   double-counted ones, excluding blacklisted */
@@ -1231,6 +1232,8 @@ EvdevAddAbsValuatorClass(DeviceIntPtr device, int want_scroll_axes)
     if (!libevdev_has_event_type(pEvdev->dev, EV_ABS))
         goto out;
 
+    /* Find the number of absolute axis, including MT ones, will
+       decrease this later. */
     for (i = 0; i < ABS_MAX; i++)
         if (libevdev_has_event_code(pEvdev->dev, EV_ABS, i))
             num_axes++;
