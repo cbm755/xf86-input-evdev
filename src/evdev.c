@@ -1239,6 +1239,11 @@ EvdevAddAbsValuatorClass(DeviceIntPtr device, int want_scroll_axes)
         goto out;
 
 #ifdef MULTITOUCH
+    xf86IDrvMsg(pInfo, X_INFO, "debug: looping over MT axes\n");
+    /* Loop over absolute multitouch axes.  Generate fake axes for
+       ABS_X etc if kernel doesn't provide.  Adjust the mapping
+       between for double-counting between ABS_X and ABS_MT_POSITION_X
+       etc.  Adjust the axes counts. */
     for (axis = ABS_MT_SLOT; axis < ABS_MAX; axis++)
     {
         if (libevdev_has_event_code(pEvdev->dev, EV_ABS, axis))
@@ -1246,13 +1251,44 @@ EvdevAddAbsValuatorClass(DeviceIntPtr device, int want_scroll_axes)
             int j;
             Bool skip = FALSE;
 
+            xf86IDrvMsg(pInfo, X_INFO, "debug: axis=%d: label=%s\n", axis, abs_labels[axis]);
+
+            /* Loop over the MT->legacy axis mapping table:
+               1. if find both ABS_X_POSITION_X and ABS_X: setup mapping
+               2. if find ABS_X_POSITION_X but not ABS_X: the kernel
+                  should give us ABS_X etc for backwards compat but
+                  some devices don't have it.  Add a fake axis, then
+                  setup mapping. */
             for (j = 0; j < ArrayLength(mt_axis_mappings); j++)
             {
-                if (mt_axis_mappings[j].mt_code == axis &&
-                    libevdev_has_event_code(pEvdev->dev, EV_ABS, mt_axis_mappings[j].code))
+                if (mt_axis_mappings[j].mt_code == axis)
                 {
+                    /* Have ABS_MT_POSITION_X but not ABS_X: add fake
+                       ABS_X axis using info from ABS_MT_POSITION_X. */
+                    if (!libevdev_has_event_code(pEvdev->dev, EV_ABS,
+                                                 mt_axis_mappings[j].code))
+                    {
+                        const struct input_absinfo* abs;
+                        abs = libevdev_get_abs_info(pEvdev->dev, axis);
+                        if (libevdev_enable_event_code(pEvdev->dev, EV_ABS,
+                                                       mt_axis_mappings[j].code, abs))
+                        {
+                            xf86IDrvMsg(pInfo, X_ERROR,
+                                        "Failed at faking axis %d as a copy of axis %d\n",
+                                        mt_axis_mappings[j].code, axis);
+                            goto out;
+                        }
+                        xf86IDrvMsg(pInfo, X_WARNING,
+                                    "Faking %s [%d] as a copy of axis %s [%d]\n",
+                                    abs_labels[mt_axis_mappings[j].code],
+                                    mt_axis_mappings[j].code,
+                                    abs_labels[axis], axis);
+                        num_axes++;
+                    }
+                    /* (now) have ABS_MT_POSITION_X and ABS_X: setup the mapping */
                     mt_axis_mappings[j].needs_mapping = TRUE;
                     skip = TRUE;
+                    xf86IDrvMsg(pInfo, X_INFO, "debug: axis=%d    j=%d, mapped code, SKIP. \t num_axes=%d, num_mt_axes=%d\n", axis, j, num_axes, num_mt_axes);
                 }
             }
 
@@ -1265,9 +1301,12 @@ EvdevAddAbsValuatorClass(DeviceIntPtr device, int want_scroll_axes)
             num_axes--;
         }
     }
+    xf86IDrvMsg(pInfo, X_INFO, "debug: num_axes=%d, num_mt_axes=%d\n", num_axes, num_mt_axes);
 
-    /* device only has mt-axes. the kernel should give us ABS_X etc for
-       backwards compat but some devices don't have it. */
+    /* Even after faking ABS_X etc, we still only have mt-axes!
+       Shouldn't happen any more even if kernel doesn't give ABS_X.
+       But leaving sanity check here: if triggered, it might indicate
+       a problem with the mt_axis_apping. */
     if (num_axes == 0 && num_mt_axes > 0) {
         xf86IDrvMsg(pInfo, X_ERROR,
                     "found only multitouch-axes. That shouldn't happen.\n");
